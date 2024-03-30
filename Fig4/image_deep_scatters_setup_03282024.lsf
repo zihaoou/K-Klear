@@ -1,0 +1,89 @@
+#### 
+# This script setup FDTD enviroment
+# i.e. Geometry of scatters, gaussian illumination, boundary condition, field distribution monitor
+
+# Author: Yi-Shiou Duh (allenduh@stanford.edu)
+# 3/21/2024
+
+
+##############################################
+## FDTD Set up 
+##############################################
+
+### Initialization
+switchtolayout;
+selectall;
+clear;  # script workspace
+deleteall;
+
+### File export
+filename_base = "C:\Users\allen\Desktop\image_deep_scatters_03262024_";
+matlabload("C:/Users/allen/Desktop/1800_scatters.mat"); # Load scatters x, y locations
+
+### Const
+nmUnit = 1e-9;
+umUnit = 1e-6;
+c0 = 3e8;
+
+# Mesh setting
+mesh = "conformal variant 0"; # How to choose see https://support.lumerical.com/hc/en-us/articles/360034382614
+meshacc = 2;        # mesh accuracy  
+
+### FDTD Domain size
+Xspan = 600 * umUnit; 
+Yspan = 1100 * umUnit; 
+
+# FDTD time
+simulationTime = 7500 * 1e-15; #2.05 * Yspan / c0;  
+pmlLayers = 5;  
+dt = 0.9;  # DT STABILITY FACTOR. Larger: faster simulation time. For long propergation set to 0.9
+autoShut = 1e-08;
+
+# Monitor setup
+downSample = 3;  # 1 or 3 (course)
+
+# Gaussian Source   
+sourceY = 5 * umUnit;  
+NA_source = 0.25;
+focus_offset = 0;
+
+# Define wavelength
+lambdaStart = 600 * nmUnit;	  # Initial wavelength
+lambdaEnd = 680 * nmUnit;     # Final wavelengt
+lambdaStep = 40 * nmUnit;      # Wavelength step
+
+##############################################
+## Scatter
+#      Radius -- 0.5 micron
+#      SiO2 (1.43) on water 
+#      Density 0.003 particles / um^2
+
+scatter_radius = 500 * nmUnit;
+
+particleDensity = 0.003;
+blurry_top_Y = 1010 * umUnit;  # 1mm scattering medium thickness
+blurry_down_Y = 10 * umUnit;
+numOfParticles = round((blurry_top_Y - blurry_down_Y) * Xspan / umUnit ^ 2 * particleDensity);
+
+
+# Add material
+if (materialexists("Dye_index_vary") != 1) { 
+        setmaterial(addmaterial("(n,k) Material"), "name", "Dye_index_vary");  
+    }
+    
+if (materialexists("Hydrogel_1.33") != 1) { 
+        setmaterial(addmaterial("(n,k) Material"), "name", "Hydrogel_1.33");  
+        setmaterial("Hydrogel_1.33", {"Refractive Index": 1.33, "Imaginary Refractive Index": 0});
+    }
+
+#if (materialexists("Dye_0.62M_600nm") != 1) { 
+        #setmaterial(addmaterial("(n,k) Material"), "name", "Dye_0.62M_600nm");  
+        #setmaterial("Dye_0.62M_600nm", {"Refractive Index": 1.41, "Imaginary Refractive Index": 1.5e-3});
+    #} 
+importmaterialdb("tartrazine_0.62M.mdf");
+importmaterialdb("Dye_0.8M_Transmission.mdf");
+
+if (materialexists("Silica_1.43") != 1) { 
+        setmaterial(addmaterial("(n,k) Material"), "name", "Silica_1.43");  
+        setmaterial("Silica_1.43", {"Refractive Index": 1.43, "Imaginary Refractive Index": 0});
+    }  

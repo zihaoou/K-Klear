@@ -1,0 +1,148 @@
+######## 
+# This script run FDTD at different background index and export field distribution data
+
+# When Gaussian beam pass through scattering medium, wavefront distort
+# We simulate the field distribution across 1mm thickness
+
+# Export field distribution and selective cross section at 600, 640, 680nm to .mat
+
+# Author: Yi-Shiou Duh (allenduh@stanford.edu)
+# 3/9/2024
+########
+
+background_medium = "dye"; # water or dye
+
+switchtolayout;
+deleteall;
+?background_medium;
+
+filename = filename_base + background_medium;
+
+############################
+###### Add FDTD 
+############################
+    
+addfdtd;
+set("dimension", 1);	    #  1 = 2D, 2 = 3D
+set("simulation time", simulationTime);
+set("simulation temperature", 300);
+set("x", 0);
+set("x span", Xspan);
+set("y", Yspan / 2);
+set("y span", Yspan);
+set("mesh accuracy", meshacc);
+set("x min bc", "PML"); 
+set("x max bc", "PML");   
+set("y min bc", "PML");
+set("y max bc", "PML");
+set("mesh refinement", mesh);
+set("pml layers", pmlLayers);  
+set("dt stability factor", dt);
+set("auto shutoff min", autoShut);
+            
+            
+############################        
+###### Add Background dye
+############################
+
+addrect;
+set("name", "Liquid");            
+set("x", 0);
+set("x span", Xspan + umUnit); # Liquid rectangle surpass boundary to avoid error
+set("y", Yspan / 2);
+set("y span", Yspan + umUnit);
+
+# Set RI
+if (background_medium == "water"){ 
+    set("material","Hydrogel_1.33");
+}    
+if (background_medium == "dye"){ 
+    set("material","Dye_0.62M_600nm");
+}    
+
+
+
+############################
+###### Add scatter
+############################
+#hide; # show will enable GUI 
+print("adding " + num2str(numOfParticles) + " particles");
+for(k = 1 : numOfParticles) {
+    addcircle;
+    set("name", "SiO2");
+    set("x", xLocList(k));
+    set("y", yLocList(k));
+    set("radius", scatter_radius);
+    set("material","Silica_1.43");
+}
+
+
+############################
+##### Add Plane wave
+############################
+
+addgaussian;
+set("name", "Gaussian");
+set("injection axis", "y");
+set("direction", "forward");
+set("x", 0);
+set("x span",  Xspan);
+set("y", sourceY);        
+set("wavelength start", lambdaStart);
+set("wavelength stop", lambdaEnd);
+set("optimize for short pulse", 0); 
+
+    
+# Thin lens for point source
+set("use thin lens", 1);
+set("NA", NA_source);
+set("distance from focus", focus_offset); 
+set("number of plane waves", 400); 
+
+
+
+############################
+##### Add field distribution monitor
+############################
+setglobalmonitor("frequency points", (lambdaEnd - lambdaStart) / lambdaStep + 1);
+setglobalmonitor("use wavelength spacing", 1);
+
+addpower;
+set("name","FieldDistribution");
+set("monitor type", 7);  # 1 = point, 2 = linear x, 3 = linear y, 4 = linear z, 5 = 2D x-normal, 6 = 2D y-normal, 7 = 2D z-normal, 8 = 3D
+set("x", 0);
+set("x span",  Xspan);
+set("y min", sourceY);           
+set("y max", Yspan);
+set("down sample X", downSample);
+set("down sample Y", downSample);
+    
+
+
+# forward monitor
+addpower;
+set("name","forwardScatter");
+set("monitor type", 2);  # 1 = point, 2 = linear x, 3 = linear y, 4 = linear z, 5 = 2D x-normal, 6 = 2D y-normal, 7 = 2D z-normal, 8 = 3D
+set("x", 0);
+set("x span",  Xspan);
+set("y", Yspan);           
+set("down sample X", 1);
+
+
+
+############################
+## Run simulation and file save
+############################      
+   
+run;
+
+fullField = getresult("FieldDistribution","E");
+forwardScatter = getresult("forwardScatter","E");
+
+fullField_Ex = fullField.Ex;
+fullField_Ey = fullField.Ey;
+fullField_lambda = fullField.lambda;
+fullField_xCoordinate = fullField.x;
+fullField_yCoordinate = fullField.y;
+matlabsave(filename, fullField_Ex, fullField_Ey, fullField_lambda, xLocList, yLocList, fullField_xCoordinate, fullField_yCoordinate, forwardScatter);
+
